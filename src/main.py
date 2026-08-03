@@ -1,33 +1,41 @@
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+from banner import show_banner
+
 from inventory import load_inventory
 from config_loader import load_config
 from ssh import SSHClient
 from logger import logger
 
+from monitor import collect_metrics
+from network import collect_network_metrics
 
-# Base monitoring commands
-BASE_COMMANDS = [
-    "hostname",
-    "uptime",
-    "free -h",
-    "df -h",
-    "nproc",
-    "uname -r",
-    "ip -4 addr show",
-]
+from recovery import recover_services
+from alerts import generate_alerts
+
+from log_analysis import (
+    analyze_logs,
+    save_log_report
+)
+
+from reports import save_metrics
+
+from history import save_history
+
+from incident import generate_incident_report
 
 
 def monitor_server(server, config):
-    """
-    Monitor one server.
-    """
 
-    logger.info(f"Monitoring started for {server['name']}")
+    logger.info(
+        f"Monitoring started for {server['name']}"
+    )
 
     print("\n" + "=" * 80)
-    print(f"Server : {server['name']} ({server['host']})")
+    print(
+        f"Server : {server['name']} ({server['host']})"
+    )
     print("=" * 80)
 
     ssh = SSHClient(
@@ -38,46 +46,225 @@ def monitor_server(server, config):
     )
 
     if not ssh.connect():
-        logger.error(f"Connection failed: {server['name']}")
+
+        logger.error(
+            f"Connection failed : {server['name']}"
+        )
+
         print("❌ Connection Failed")
-        return
+
+        return None
 
     print("✅ Connected")
 
-    # Run base commands
-    for command in BASE_COMMANDS:
+    # =====================================
+    # Monitoring
+    # =====================================
 
-        print(f"\n$ {command}")
+    metrics = collect_metrics(
+        ssh,
+        config
+    )
 
-        output, error = ssh.execute(command)
+    metrics["network"] = collect_network_metrics(
+        server,
+        config
+    )
 
-        if error:
-            logger.error(f"{server['name']} | {command} | {error}")
-            print(error)
+    metrics["server"] = {
+
+        "name": server["name"],
+
+        "host": server["host"]
+
+    }
+
+    # =====================================
+    # Recovery
+    # =====================================
+
+    recovery = recover_services(
+        ssh,
+        metrics["services"]
+    )
+
+    metrics["recovery"] = recovery
+
+    # =====================================
+    # Alerts
+    # =====================================
+
+    generate_alerts(
+        metrics,
+        config
+    )
+
+    # =====================================
+    # Log Analysis
+    # =====================================
+
+    logs = analyze_logs(ssh)
+
+    metrics["logs"] = logs
+
+    save_log_report(
+        server["name"],
+        logs
+    )
+
+    # =====================================
+    # Reports
+    # =====================================
+
+    save_metrics(metrics)
+
+    save_history(metrics)
+
+    generate_incident_report(metrics)
+
+    # =====================================
+    # Display
+    # =====================================
+
+    print("\nCPU")
+    print("-" * 50)
+
+    cpu = metrics["resources"]["cpu"]
+
+    print(f"Usage : {cpu}%")
+
+    if cpu >= config["cpu_threshold"]:
+        print("Status : ⚠ HIGH CPU")
+    else:
+        print("Status : ✅ HEALTHY")
+
+    # -------------------------------------
+
+    memory = metrics["resources"]["memory"]
+
+    print("\nMemory")
+    print("-" * 50)
+
+    print(f"Total : {memory['total_mb']} MB")
+    print(f"Used  : {memory['used_mb']} MB")
+    print(f"Free  : {memory['free_mb']} MB")
+    print(f"Usage : {memory['usage_percent']}%")
+
+    if memory["usage_percent"] >= config["memory_threshold"]:
+        print("Status : ⚠ HIGH MEMORY")
+    else:
+        print("Status : ✅ HEALTHY")
+
+    # -------------------------------------
+
+    disk = metrics["resources"]["disk"]
+
+    print("\nDisk")
+    print("-" * 50)
+
+    print(f"Filesystem : {disk['filesystem']}")
+    print(f"Size       : {disk['size']}")
+    print(f"Used       : {disk['used']}")
+    print(f"Available  : {disk['available']}")
+    print(f"Usage      : {disk['usage_percent']}%")
+
+    if disk["usage_percent"] >= config["disk_threshold"]:
+        print("Status : ⚠ HIGH DISK")
+    else:
+        print("Status : ✅ HEALTHY")
+
+    # -------------------------------------
+
+    print("\nServices")
+    print("-" * 50)
+
+    for service, info in metrics["services"].items():
+
+        icon = "✅" if info["healthy"] else "❌"
+
+        print(
+            f"{service:<15}: "
+            f"{info['status']:<10} "
+            f"{icon}"
+        )
+
+    # -------------------------------------
+
+    print("\nRecovery")
+    print("-" * 50)
+
+    for service, result in recovery.items():
+
+        if result["action"] == "None":
+
+            print(
+                f"{service:<15}: Healthy"
+            )
+
         else:
-            logger.info(f"{server['name']} | {command} | SUCCESS")
-            print(output)
 
-    # Run service checks from config.yaml
-    print("\nService Status")
-    print("-" * 80)
+            status = (
+                "SUCCESS"
+                if result["success"]
+                else "FAILED"
+            )
 
-    for service in config["services"]:
+            print(
+                f"{service:<15}: "
+                f"{result['action']} -> {status}"
+            )
 
-        command = f"systemctl is-active {service}"
+    # -------------------------------------
 
-        output, error = ssh.execute(command)
+    system = metrics["system"]
 
-        if error:
-            logger.error(f"{server['name']} | {service} | {error}")
-            print(f"{service:<15}: ERROR")
-        else:
-            logger.info(f"{server['name']} | {service} | {output}")
-            print(f"{service:<15}: {output}")
+    print("\nSystem")
+    print("-" * 50)
+
+    print(f"Hostname      : {system['hostname']}")
+    print(f"OS            : {system['os']}")
+    print(f"Kernel        : {system['kernel']}")
+    print(f"Architecture  : {system['architecture']}")
+    print(f"Uptime        : {system['uptime']}")
+    print(f"Load Average  : {system['load_average']}")
+
+    # -------------------------------------
+
+    network = metrics["network"]
+
+    print("\nNetwork")
+    print("-" * 50)
+
+    print(
+        f"SSH  : {'ONLINE' if network['ssh'] else 'OFFLINE'}"
+    )
+
+    if network["http"] is None:
+        print("HTTP : OFFLINE")
+    else:
+        print(f"HTTP : {network['http']}")
+
+    print(
+        f"DNS  : {'OK' if network['dns'] else 'FAILED'}"
+    )
+
+    print("\nPort Scan")
+    print("-" * 50)
+
+    for port, status in network["ports"].items():
+
+        print(f"{port:<5}: {status}")
 
     ssh.disconnect()
 
-    logger.info(f"Monitoring completed for {server['name']}")
+    logger.info(
+        f"Monitoring completed for {server['name']}"
+    )
+
+    return metrics
+
+from dashboard import generate_dashboard
+from report_generator import generate_summary_report
 
 
 def main():
@@ -88,57 +275,110 @@ def main():
     servers = load_inventory()
     config = load_config()
 
-    print("=" * 80)
-    print("Infrastructure Monitoring Platform")
-    print("=" * 80)
-
-    print(f"\nLoaded Servers : {len(servers)}")
-
-    print("\nConfiguration")
-    print("-" * 80)
-
-    print(f"CPU Threshold     : {config['cpu_threshold']}%")
-    print(f"Memory Threshold  : {config['memory_threshold']}%")
-    print(f"Disk Threshold    : {config['disk_threshold']}%")
-    print(f"Check Interval    : {config['check_interval']} seconds")
-
-    print("\nServices To Monitor")
-
-    for service in config["services"]:
-        print(f" • {service}")
-
-    print("\nPorts To Monitor")
-
-    for port in config["network_ports"]:
-        print(f" • {port}")
-
+    show_banner(
+    len(servers),
+    config
+               )
     start = time.time()
 
-    with ThreadPoolExecutor(max_workers=len(servers)) as executor:
+    all_metrics = []
 
-        futures = []
+    with ThreadPoolExecutor(
+        max_workers=len(servers)
+    ) as executor:
 
-        for server in servers:
-            futures.append(
-                executor.submit(
-                    monitor_server,
-                    server,
-                    config
-                )
+        futures = [
+
+            executor.submit(
+                monitor_server,
+                server,
+                config
             )
 
+            for server in servers
+
+        ]
+
         for future in futures:
-            future.result()
+
+            result = future.result()
+
+            if result:
+
+                all_metrics.append(result)
+
+    # =====================================
+    # Dashboard
+    # =====================================
+
+    generate_dashboard(
+        all_metrics
+    )
+
+    # =====================================
+    # Reports
+    # =====================================
+
+    generate_summary_report(
+        all_metrics,
+        "daily"
+    )
+
+    # Uncomment these when implementing
+    # automatic scheduling.
+    #
+    # generate_summary_report(
+    #     all_metrics,
+    #     "weekly"
+    # )
+    #
+    # generate_summary_report(
+    #     all_metrics,
+    #     "monthly"
+    # )
 
     end = time.time()
 
-    logger.info(f"Execution Time : {end-start:.2f} seconds")
-    logger.info("Infrastructure Monitoring Finished")
-    logger.info("=" * 80)
+    logger.info(
+        f"Execution Time : {end-start:.2f} seconds"
+    )
+
+    logger.info(
+        "Monitoring Finished"
+    )
 
     print("\n" + "=" * 80)
-    print("Monitoring Finished Successfully")
-    print(f"Execution Time : {end-start:.2f} seconds")
+
+    print(
+        "Monitoring Completed Successfully"
+    )
+
+    print(
+        f"Servers Checked : {len(all_metrics)}"
+    )
+
+    print(
+        f"Execution Time : {end-start:.2f} seconds"
+    )
+
+    print(
+        "\nGenerated Files"
+    )
+
+    print("-" * 80)
+
+    print("✓ dashboard/dashboard.html")
+
+    print("✓ reports/metrics.json")
+
+    print("✓ reports/incident_report.html")
+
+    print("✓ reports/log_report.json")
+
+    print("✓ reports/history_server*.json")
+
+    print("✓ reports/daily/")
+
     print("=" * 80)
 
 
