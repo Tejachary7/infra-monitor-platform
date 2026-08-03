@@ -1,0 +1,14 @@
+                main.py
+                   │
+ ┌─────────────────┼─────────────────┐
+ ▼                 ▼                 ▼
+monitor.py      network.py       services.py
+ │                 │                 │
+ ▼                 ▼                 ▼
+alerts.py      recovery.py     log_analysis.py
+ │
+ ▼
+reports.py
+ │
+ ▼
+dashboard.py

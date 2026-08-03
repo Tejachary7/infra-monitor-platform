@@ -1,0 +1,15 @@
+                            Administrator
+                                  │
+                                  ▼
+                          HTML Dashboard
+                                  │
+                                  ▼
+                  Infrastructure Monitoring Platform
+                                  │
+        ┌───────────────┬───────────────┬───────────────┐
+        │               │               │
+        ▼               ▼               ▼
+    Server-1        Server-2        Server-3
+    Ubuntu          Ubuntu          Ubuntu
+    SSH             SSH             SSH
+    Nginx           Nginx           Nginx

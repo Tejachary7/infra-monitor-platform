@@ -1,0 +1,25 @@
+Scheduler
+    │
+    ▼
+Load Configuration
+    │
+    ▼
+Load Inventory
+    │
+    ▼
+ThreadPoolExecutor
+    │
+    ▼
+Connect to Servers
+    │
+    ▼
+Collect Metrics
+    │
+    ▼
+CPU
+Memory
+Disk
+Services
+Network
+Ports
+Logs

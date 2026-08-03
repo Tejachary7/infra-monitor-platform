@@ -1,0 +1,19 @@
+Service Monitor
+        │
+        ▼
+Healthy?
+        │
+   ┌────┴────┐
+   │         │
+ YES        NO
+   │         │
+ Continue    Restart Service
+               │
+               ▼
+        Verify Status
+               │
+        ┌──────┴──────┐
+        │             │
+     Success       Failure
+        │             │
+ Incident Log     Critical Alert

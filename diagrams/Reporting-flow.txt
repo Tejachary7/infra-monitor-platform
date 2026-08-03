@@ -1,0 +1,15 @@
+Monitoring Results
+        │
+        ▼
+ Monitoring Object
+        │
+ ┌──────┼───────────────┐
+ │      │               │
+ ▼      ▼               ▼
+Dashboard History Alerts
+ │      │               │
+ ▼      ▼               ▼
+HTML  JSON Files    alerts.log
+        │
+        ▼
+ Incident Report
