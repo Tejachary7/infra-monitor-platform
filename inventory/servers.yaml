@@ -1,0 +1,18 @@
+servers:
+  - name: server1
+    host: 10.44.244.150
+    username: admin1
+    port: 22
+    key_file: ~/.ssh/key1
+
+  - name: server2
+    host: 10.44.244.186
+    username: admin2
+    port: 22
+    key_file: ~/.ssh/key2
+
+  - name: server3
+    host: 10.44.244.223
+    username: admin3
+    port: 22
+    key_file: ~/.ssh/key3

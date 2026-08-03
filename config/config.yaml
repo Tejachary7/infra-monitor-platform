@@ -1,0 +1,20 @@
+cpu_threshold: 90
+
+memory_threshold: 85
+
+disk_threshold: 85
+
+check_interval: 300
+
+services:
+  - nginx
+  - ssh
+
+network_ports:
+  - 22
+  - 80
+  - 443
+
+reports:
+  html: true
+  json: true
